@@ -1,0 +1,31 @@
+# Dependencies
+node_modules/
+
+# Build output
+.vite
+dist/
+
+# IDE
+.vscode/
+
+# Claude Code
+.claude/
+
+# Python bytecode
+__pycache__/
+*.pyc
+*.pyo
+
+# Environment & secrets
+.env
+env.ps1
+
+# Virtual environments
+venv/
+env/
+.venv/
+.newcitenv/
+
+# Accidental root-level installs
+/package.json
+/package-lock.json

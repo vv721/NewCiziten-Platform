@@ -1,0 +1,17 @@
+# Bytecode
+__pycache__/
+*.pyc
+*.pyo
+
+# Environment & secrets
+.env
+
+# SQLite database
+app.db
+
+# Runtime data (generated at startup or during usage)
+data/chroma_db/
+data/uploads/
+
+# Embedding model (large binary, downloaded separately)
+data/models/

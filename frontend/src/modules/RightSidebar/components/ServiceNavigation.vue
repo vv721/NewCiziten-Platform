@@ -1,5 +1,5 @@
 <script setup>
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { uiState } from '@/store/uiState'
 import ServiceNavigationIntro from '@/modules/RightSidebar/Intro/ServiceNavigationIntro.vue'
 import {
@@ -9,16 +9,28 @@ import {
   CircleCheckFilled
 } from '@element-plus/icons-vue'
 
-// 1. 逻辑接洽：从全局状态获取当前办事指南
 const data = computed(() => uiState.activeProcess)
 
-// 2. 核心交互：跳转地图并启动导航态
+// 交互状态
+const currentStep = ref(-1)
+const checkedMaterials = ref(new Set())
+
 const handleStartNavigation = () => {
-  // 逻辑接洽：从当前 activeProcess 中提取 latlng
   if (data.value && data.value.latlng) {
     uiState.dispatchCommand('START_NAV', data.value.latlng);
   }
 };
+
+const toggleMaterial = (idx) => {
+  const set = checkedMaterials.value
+  if (set.has(idx)) {
+    set.delete(idx)
+  } else {
+    set.add(idx)
+  }
+  // 触发响应式更新
+  checkedMaterials.value = new Set(set)
+}
 </script>
 
 <template>
@@ -35,12 +47,14 @@ const handleStartNavigation = () => {
       <!-- 流程步骤 -->
       <div class="section">
         <div class="section-label"><el-icon><Guide /></el-icon> 办理流程</div>
-        <el-steps direction="vertical" :active="0" class="custom-steps">
-          <el-step 
-            v-for="(step, idx) in data.steps" 
-            :key="idx" 
+        <el-steps direction="vertical" :active="currentStep" class="custom-steps">
+          <el-step
+            v-for="(step, idx) in data.steps"
+            :key="idx"
             :title="step.name"
             :description="step.desc"
+            class="clickable-step"
+            @click="currentStep = idx"
           />
         </el-steps>
       </div>
@@ -49,10 +63,18 @@ const handleStartNavigation = () => {
       <div class="section">
         <div class="section-label"><el-icon><List /></el-icon> 所需材料</div>
         <div class="material-card-list">
-          <div v-for="(m, idx) in data.materials" :key="idx" class="material-card">
-            <el-icon class="check-icon"><CircleCheckFilled /></el-icon>
+          <div
+            v-for="(m, idx) in data.materials"
+            :key="idx"
+            class="material-card"
+            :class="{ checked: checkedMaterials.has(idx) }"
+            @click="toggleMaterial(idx)"
+          >
+            <el-icon class="check-icon" :class="{ checked: checkedMaterials.has(idx) }">
+              <CircleCheckFilled />
+            </el-icon>
             <div class="m-info">
-              <div class="m-name">{{ m.name }}</div>
+              <div class="m-name" :class="{ checked: checkedMaterials.has(idx) }">{{ m.name }}</div>
               <div class="m-type">{{ m.type }} | {{ m.paper_count }}份</div>
             </div>
           </div>
@@ -123,13 +145,46 @@ const handleStartNavigation = () => {
 .custom-steps :deep(.el-step__description) { font-size: 11px; margin-top: 4px; color: #94a3b8; }
 .custom-steps :deep(.el-step.is-vertical) { padding-bottom: 20px; }
 
+.clickable-step {
+  cursor: pointer;
+}
+.clickable-step:hover :deep(.el-step__head) {
+  transform: scale(1.15);
+  transition: transform 0.2s;
+}
+
 /* 材料卡片 */
 .material-card {
   display: flex; align-items: flex-start; gap: 10px;
   padding: 12px; background: #f8fafc; border-radius: 8px; margin-bottom: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+  border: 1px solid transparent;
 }
-.check-icon { color: #cbd5e1; margin-top: 2px; }
-.m-name { font-size: 13px; font-weight: 500; color: #1e293b; }
+.material-card:hover {
+  border-color: #93c5fd;
+}
+.material-card.checked {
+  background: #f0fdf4;
+  border-color: #86efac;
+}
+.check-icon {
+  color: #cbd5e1;
+  margin-top: 2px;
+  transition: color 0.2s;
+  flex-shrink: 0;
+}
+.check-icon.checked {
+  color: #22c55e;
+}
+.m-name {
+  font-size: 13px; font-weight: 500; color: #1e293b;
+  transition: all 0.2s;
+}
+.m-name.checked {
+  text-decoration: line-through;
+  color: #94a3b8;
+}
 .m-type { font-size: 11px; color: #64748b; }
 
 /* 底部按钮 */

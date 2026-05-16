@@ -31,8 +31,8 @@ const emit = defineEmits(['new-chat'])
 .brand {
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 10px;
-  padding-left: 8px;
 }
 
 .logo {

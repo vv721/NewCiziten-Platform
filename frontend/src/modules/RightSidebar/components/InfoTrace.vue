@@ -95,6 +95,7 @@ const handleShowDetail = (item, index) => {
 }
 
 .trace-header {
+  flex-shrink: 0;
   padding: 16px;
   background: #fff;
   border-bottom: 1px solid #e2e8f0;
@@ -108,11 +109,23 @@ const handleShowDetail = (item, index) => {
   font-size: 14px;
 }
 
-/* 列表滚动区 */
-.trace-list {
+/* trace-body 承接剩余高度，约束子元素滚动 */
+.trace-body {
   flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* 列表滚动区（隐藏滚动条但保留滚动能力） */
+.trace-list {
+  height: 100%;
   overflow-y: auto;
   padding: 12px;
+  scrollbar-width: none;
+}
+
+.trace-list::-webkit-scrollbar {
+  display: none;
 }
 
 /* 摘要卡片：轻量化设计 */

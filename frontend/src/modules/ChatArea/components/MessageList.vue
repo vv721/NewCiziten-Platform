@@ -15,8 +15,12 @@ const { render } = useMarkdown()
       <div v-for="(msg, index) in messages" :key="index" :class="['msg-row', msg.role]">
         <div class="avatar">{{ msg.role === 'user' ? '👤' : '🤖' }}</div>
         <div class="bubble">
-          <div class="markdown-body" v-html="render(msg.content)"></div>
-          <!-- 如果有 RAG 来源，在这里显示 -->
+          <div v-if="msg.role === 'ai' && !msg.content" class="typing-indicator">
+            <span class="dot"></span>
+            <span class="dot"></span>
+            <span class="dot"></span>
+          </div>
+          <div v-else class="markdown-body" v-html="render(msg.content)"></div>
           <div v-if="msg.sources && msg.sources.length" class="source-tag">
             参考自: {{ msg.sources.join(', ') }}
           </div>
@@ -121,6 +125,31 @@ const { render } = useMarkdown()
   background-color: #409eff;
   color: #ffffff;
   border-radius: 12px 0 12px 12px;
+}
+
+/* 打字中动画 */
+.typing-indicator {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 0;
+}
+
+.dot {
+  width: 6px;
+  height: 6px;
+  background: #94a3b8;
+  border-radius: 50%;
+  animation: bounce 1.4s infinite ease-in-out both;
+}
+
+.dot:nth-child(1) { animation-delay: 0s; }
+.dot:nth-child(2) { animation-delay: 0.2s; }
+.dot:nth-child(3) { animation-delay: 0.4s; }
+
+@keyframes bounce {
+  0%, 80%, 100% { transform: scale(0.6); opacity: 0.4; }
+  40% { transform: scale(1); opacity: 1; }
 }
 
 /* RAG 来源标签样式 */

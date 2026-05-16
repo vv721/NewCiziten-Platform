@@ -40,22 +40,14 @@ import { Setting, Grid } from '@element-plus/icons-vue'
 
 /* 顶部：功能引导区 */
 .funcArea {
-  height: auto; /* 让高度由组件撑开 */
-  border-bottom: 1px solid #f1f5f9;
-}
-
-.desc-text {
-    font-size: 12px;
-    color: #6b7280;
-    line-height: 1.5;
-    margin: 0;
+  height: auto;
 }
 
 /* 中间：核心模块展示区 */
 .moudleArea {
     flex: 1;
-    min-height: 0; /* 必须加这一行，防止内容撑开 Flex */
-    padding: 12px;
+    min-height: 0;
+    padding: 0 12px 12px;
     background-color: #f9fafb;
 }
 

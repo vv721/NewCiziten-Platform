@@ -2,11 +2,16 @@ import asyncio
 import json
 import re
 import os
+import sys
 import base64
 import requests
 from dotenv import load_dotenv
 from playwright.async_api import async_playwright
 from openai import OpenAI
+
+# 添加 backend 目录到 Python 路径
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 from database import SessionLocal
 import models
 # [解耦点]：导入提示词模板
@@ -141,15 +146,89 @@ class ServiceImporter:
             except Exception as e:
                 print(f"URL {url} 处理失败: {e}")
 
+    async def collect_urls_from_filter(self, filter_url, user_topic_types=None, corp_topic_types=None):
+        """
+        从服务目录筛选页批量收集所有详情页 URL。
+        参数:
+            filter_url — 筛选页 URL（提供基础参数和 access_token）
+            user_topic_types — 个人主题 ID，逗号分隔，如 "125,130"（多选时必传）
+            corp_topic_types — 法人主题 ID，逗号分隔（多选时必传）
+        返回: 去重后的详情页 URL 列表
+        """
+        print(f"正在收集 URL: {filter_url}")
+        async with async_playwright() as p:
+            browser = await p.chromium.launch(headless=True)
+            page = await browser.new_page()
+            await page.set_extra_http_headers({"Referer": "https://zwfw.dl.gov.cn/"})
+            await page.goto(filter_url, wait_until="networkidle")
+
+            # 1. 调第一页 API 获取总数（支持覆盖多选主题参数）
+            first_page = await page.evaluate("""([topicTypes, corpTypes]) => {
+                const formData = new URLSearchParams();
+                for (const el of document.querySelectorAll('#form input')) {
+                    if (el.name) formData.append(el.name, el.value);
+                }
+                if (topicTypes) formData.set('userTopicType', topicTypes);
+                if (corpTypes) formData.set('corpTopicType', corpTypes);
+                formData.set('pageNumber', '1');
+                formData.set('pageSize', '5');
+                return fetch(webRoot + '/item/itemList', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                    body: formData.toString()
+                }).then(r => r.json());
+            }""", [user_topic_types, corp_topic_types])
+
+            total = first_page["count"]
+            total_pages = (total + 4) // 5
+            print(f"共 {total} 条，{total_pages} 页")
+
+            item_ids = set()
+            for page_num in range(1, total_pages + 1):
+                print(f"收集第 {page_num}/{total_pages} 页...")
+                data = await page.evaluate("""([pageNum, topicTypes, corpTypes]) => {
+                    const formData = new URLSearchParams();
+                    for (const el of document.querySelectorAll('#form input')) {
+                        if (el.name) formData.append(el.name, el.value);
+                    }
+                    if (topicTypes) formData.set('userTopicType', topicTypes);
+                    if (corpTypes) formData.set('corpTopicType', corpTypes);
+                    formData.set('pageNumber', String(pageNum));
+                    formData.set('pageSize', '5');
+                    return fetch(webRoot + '/item/itemList', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                        body: formData.toString()
+                    }).then(r => r.json());
+                }""", [page_num, user_topic_types, corp_topic_types])
+
+                for group in data.get("itemList", []):
+                    for item in group.get("itemList", []):
+                        item_ids.add(item["ITEM_ID"])
+
+                await asyncio.sleep(1)  # 礼貌延迟
+
+            await browser.close()
+
+        urls = [f"https://zwfw.dl.gov.cn/dlPortal/item/toDetails/{iid}" for iid in item_ids]
+        print(f"收集完成: {len(urls)} 个唯一 URL")
+        return urls
+
 if __name__ == "__main__":
-    urls = [
-        "https://zwfw.dl.gov.cn/dlPortal/item/toDetails/375654d0-76e2-4bd1-8890-5ab1df4e8e13",
-        "https://zwfw.dl.gov.cn/dlPortal/item/toDetails/64cbc2cb-565b-4d46-97b4-ebc47ba35c6e",
-        "https://zwfw.dl.gov.cn/dlPortal/item/toDetails/d1b36f71-5b0f-417c-abd3-6bc74c403087",
-        "https://zwfw.dl.gov.cn/dlPortal/item/toDetails/ba7d4fd7-36a8-4959-b012-0ca72ef62ea2",
-        "https://zwfw.dl.gov.cn/dlPortal/item/toDetails/1601b759-479b-4e8d-baa9-388e29acf8bb",
-        "https://zwfw.dl.gov.cn/dlPortal/item/toDetails/33c7c47f-129b-4464-83c4-b2080c9d064a",
-        # 此处可以继续添加另外两个 URL
-    ]
     importer = ServiceImporter()
-    importer.start_batch(urls)
+
+    # 步骤1: 从筛选页自动收集所有办事指南 URL
+    filter_url = "https://zwfw.dl.gov.cn/dlPortal/filterWork?areaCode=210201000000&userTopicType=125&serverType=1"
+    # 多选主题时传逗号分隔字符串（在页面勾选后从 #UserTopicType 的值获取）
+    urls = asyncio.run(importer.collect_urls_from_filter(
+        filter_url,
+        user_topic_types="010,020,030,065,075,085",  # 替换为实际勾选的主题 ID 列表 document.querySelector('#UserTopicType').value
+    ))
+
+    # 过滤已导入的 URL
+    existing = {g.source_url for g in importer.db.query(models.ServiceGuide.source_url).all()}
+    new_urls = [u for u in urls if u not in existing]
+    print(f"已入库 {len(existing)} 条，新增 {len(new_urls)} 条")
+
+    # 步骤2: 逐条抓取并入库
+    importer.start_batch(new_urls)

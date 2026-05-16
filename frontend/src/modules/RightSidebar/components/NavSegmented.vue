@@ -44,10 +44,11 @@ const handleTabClick = (index) => {
 
 <style scoped>
 .segmented-container {
-  padding: 12px 16px;
+  padding: 12px 16px 8px;
   background-color: #ffffff;
   display: flex;
   justify-content: center;
+  margin-top: 20px;
 }
 
 .segmented-control {

@@ -17,7 +17,7 @@ const title = computed(() => {
 
 <style scoped>
 .chat-header {
-  height: 36px;
+  height: 28px;
   display: flex;
   align-items: center;
   padding: 0 24px;
@@ -30,7 +30,7 @@ const title = computed(() => {
 }
 
 .convo-title {
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 500;
   color: #6b7280;
   letter-spacing: 0.3px;

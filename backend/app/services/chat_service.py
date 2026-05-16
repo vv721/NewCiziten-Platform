@@ -8,17 +8,12 @@ from app.core.llm_client import llm
 from models import ServiceGuide, Resource
 
 
-def _parse_payload(intent: str) -> str:
-    return intent.split(':', 1)[-1].strip() if ':' in intent else ''
-
-
-def handle_process(db: Session, intent: str):
-    standard_title = _parse_payload(intent)
-    guide = db.query(ServiceGuide).filter(ServiceGuide.title == standard_title).first()
+def handle_process(db: Session, service_name: str):
+    guide = db.query(ServiceGuide).filter(ServiceGuide.title == service_name).first()
 
     if not guide:
         return (
-            f'抱歉,在我的资源库中暂时没有找到与"{standard_title}"相关的办事指南。',
+            f'抱歉,在我的资源库中暂时没有找到与"{service_name}"相关的办事指南。',
             'SHOW_PROCESS',
             None,
         )
@@ -38,17 +33,15 @@ def handle_process(db: Session, intent: str):
     return answer, 'SHOW_PROCESS', process_data
 
 
-def handle_map(db: Session, intent: str):
-    search_keyword = _parse_payload(intent)
-
+def handle_map(db: Session, keyword: str):
     query = db.query(Resource)
 
-    if search_keyword and search_keyword.upper() != 'NONE':
+    if keyword and keyword.upper() != 'NONE':
         query = query.filter(
             or_(
-                Resource.name.contains(search_keyword),
-                Resource.tags.contains(search_keyword),
-                Resource.category.contains(search_keyword),
+                Resource.name.contains(keyword),
+                Resource.tags.contains(keyword),
+                Resource.category.contains(keyword),
             )
         )
 
@@ -56,7 +49,7 @@ def handle_map(db: Session, intent: str):
 
     if not resources:
         return (
-            f'抱歉,在我的资源库中暂时没有找到与"{search_keyword}"相关的已认证服务点。',
+            f'抱歉,在我的资源库中暂时没有找到与"{keyword}"相关的已认证服务点。',
             'DEFAULT',
             [],
         )

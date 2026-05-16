@@ -76,38 +76,76 @@ RAG_PROMPT = """
     """
 
 
-INTENT_PROMPT = """
-你是一个政务服务调度专家。请分析用户的咨询问题并分类。
+INTENT_SYSTEM_PROMPT = """你是一个政务服务调度专家。分析用户咨询问题，调用对应函数进行路由分发。
 
-### 现有标准业务清单：
+### 可用服务事项列表（仅用于 show_process 匹配参考）：
 {service_list}
 
-### 分类规则：
-1. [MAP]: 用户在寻找具体的"物理位置"或"办事网点"。
-   - 关键词：在哪里、地址、位置、地图、最近的xx局、怎么走。
-   - 输出格式：MAP:关键词
-   - 例子："甘井子区派出所在哪？" -> MAP:甘井子区派出所
+### 路由原则：
+- 用户明确要办理某事项且事项在列表中 → show_process
+- 用户查找地点/网点 → show_map
+- 用户询问政策规定、条件、材料等条文 → search_policy
+- 用户闲聊寒暄 → chat
+- 若用户提问与服务列表无关，不要强行匹配为 show_process，应归为 search_policy"""
 
-2. [PROCESS]: 用户想要办事、询问流程。请从上面的"现有标准业务清单"中选择一个最匹配的【标准名称】输出。
-   - 注意：如果用户提问与清单内容完全无关，请不要强行匹配，归类为 RAG 或 CHAT。
-   - 输出格式：PROCESS:标准名称
-   - 例子：如果清单中有"居住证办理"，用户问"怎么办理居住证" -> PROCESS:居住证办理
-
-3. [RAG]: 用户在询问"政策、规定、手续、流程、条件、材料"等具体政策条文或规定。
-   - 关键词：怎么办、如何申请、需要什么、多少钱、什么条件、有没有政策。
-   - 输出格式：RAG
-   - 例子："本科生租房补贴怎么领？"、"办居住证需要带什么？"、"落户政策"
-
-4. [CHAT]: 用户在进行"日常寒暄"或"无意义闲聊"。
-   - 关键词：你好、你是谁、今天天气、讲个笑话。
-   - 输出格式：CHAT
-   - 例子："你好啊"、"你能干什么"
-
-请仅输出标签名（MAP, RAG, PROCESS 或 CHAT），不要输出任何解释说明。
-如果是地图意图，请严格输出 MAP:具体地名或类别。如果用户只是说'地图'而没说查什么，请输出 MAP:NONE。
-如果是流程意图，请严格输出 PROCESS:具体事项名称。如果用户只是说'流程'而没说具体事项，请输出 PROCESS:NONE。
-用户问题："{user_query}"
-输出："""
+INTENT_TOOLS = [
+    {
+        "type": "function",
+        "function": {
+            "name": "show_map",
+            "description": "用户正在寻找具体物理位置或办事网点（派出所、社保局、街道办事处等），需要在地图上展示结果。触发关键词：在哪里、地址、位置、最近的、怎么走、地图。",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "keyword": {
+                        "type": "string",
+                        "description": "用户要查找的地点关键词，如'甘井子区派出所'、'社保局'。若用户只说'地图'未指定目标，填入 NONE。"
+                    }
+                },
+                "required": ["keyword"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "show_process",
+            "description": "用户想要办理某项具体政务事项（如居住证、落户、补贴申请等），需要展示办理流程、材料清单和办事网点。必须从已知服务列表中匹配最接近的一项，若无匹配则不要调用此函数。",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "service_name": {
+                        "type": "string",
+                        "description": "从服务事项列表中选择与用户意图最匹配的标准名称，必须与列表中的某项完全一致"
+                    }
+                },
+                "required": ["service_name"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "search_policy",
+            "description": "用户在询问政策规定、申请条件、补贴标准、资格要求等具体政策条文。需要通过知识库检索后给出有据可查的回答。触发关键词：怎么办、如何申请、需要什么材料、多少钱、什么条件。",
+            "parameters": {
+                "type": "object",
+                "properties": {}
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "chat",
+            "description": "用户在进行日常寒暄、闲聊或询问系统能力范围。触发关键词：你好、你是谁、今天天气、能干什么。",
+            "parameters": {
+                "type": "object",
+                "properties": {}
+            }
+        }
+    }
+]
 
 
 TITLE_GEN_PROMPT = """

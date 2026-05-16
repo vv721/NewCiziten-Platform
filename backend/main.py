@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 from passlib.context import CryptContext
 import json
 
-from app.core.prompts import INTENT_PROMPT, QUERY_REWRITE_TEMPLATE, TITLE_GEN_PROMPT
+from app.core.prompts import INTENT_TOOLS, INTENT_SYSTEM_PROMPT, QUERY_REWRITE_TEMPLATE, TITLE_GEN_PROMPT
 from app.services.chat_service import (
     handle_process, handle_map, handle_rag, handle_chat,
     handle_rag_stream, handle_chat_stream,
@@ -108,16 +108,22 @@ async def chat_endpoint(request: dict, db: Session = Depends(get_db)):
                 user_query = rewritten.strip()
                 print(f"[Rewrite] {original_query} -> {user_query}")
 
-    # 意图分析
+    # 意图分析 (Function Calling)
     all_guides = db.query(ServiceGuide.title).all()
     service_list_str = ", ".join([g.title for g in all_guides])
-    intent_prompt = INTENT_PROMPT.format(user_query=user_query, service_list=service_list_str)
-    intent = llm.ask(intent_prompt)
-    print(intent)
+    intent_result = llm.classify_intent(
+        user_query,
+        tools=INTENT_TOOLS,
+        system_message=INTENT_SYSTEM_PROMPT.format(service_list=service_list_str),
+    )
+    func_name = intent_result["name"]
+    args = intent_result["arguments"]
+    print(f"[Intent] {func_name} {args}")
 
     try:
-        if "PROCESS" in intent.upper():
-            answer, ui_cmd, process_data = handle_process(db, intent)
+        if func_name == "show_process":
+            service_name = args.get("service_name", "")
+            answer, ui_cmd, process_data = handle_process(db, service_name)
             ai_msg = Message(convo_id=convo_id, role="ai", content=answer, sources="[]")
             db.add(ai_msg)
             db.commit()
@@ -127,8 +133,9 @@ async def chat_endpoint(request: dict, db: Session = Depends(get_db)):
                 "convo_id": convo_id,
             }
 
-        elif "MAP" in intent.upper():
-            answer, ui_cmd, map_data = handle_map(db, intent)
+        elif func_name == "show_map":
+            keyword = args.get("keyword", "")
+            answer, ui_cmd, map_data = handle_map(db, keyword)
             ai_msg = Message(convo_id=convo_id, role="ai", content=answer, sources="[]")
             db.add(ai_msg)
             db.commit()
@@ -138,7 +145,7 @@ async def chat_endpoint(request: dict, db: Session = Depends(get_db)):
                 "convo_id": convo_id,
             }
 
-        elif "RAG" in intent.upper():
+        elif func_name == "search_policy":
             return StreamingResponse(
                 _sse_wrapper(handle_rag_stream(user_query), convo_id),
                 media_type="text/event-stream",

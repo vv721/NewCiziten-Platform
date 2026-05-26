@@ -26,6 +26,9 @@ env/
 .venv/
 .newcitenv/
 
+# Paper (private, user-only)
+paper/
+
 # Accidental root-level installs
 /package.json
 /package-lock.json

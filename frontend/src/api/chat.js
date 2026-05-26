@@ -9,16 +9,6 @@ export async function sendToAIStream(msg, convoId, userId, callbacks) {
     body: JSON.stringify({ message: msg, convo_id: convoId, user_id: userId }),
   })
 
-  const contentType = response.headers.get('content-type') || ''
-
-  // Non-streaming response (PROCESS / MAP)
-  if (contentType.includes('application/json')) {
-    const data = await response.json()
-    callbacks.onJSON?.(data)
-    return
-  }
-
-  // Streaming response (RAG / CHAT)
   const reader = response.body.getReader()
   const decoder = new TextDecoder()
   let buffer = ''

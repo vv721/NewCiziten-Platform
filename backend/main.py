@@ -8,8 +8,7 @@ import json
 
 from app.core.prompts import INTENT_TOOLS, INTENT_SYSTEM_PROMPT, QUERY_REWRITE_TEMPLATE, TITLE_GEN_PROMPT
 from app.services.chat_service import (
-    handle_process, handle_map, handle_rag, handle_chat,
-    handle_rag_stream, handle_chat_stream,
+    handle_process_stream, handle_map_stream, handle_rag_stream, handle_chat_stream,
 )
 from routers.admin import router as admin_router
 from database import get_db, SessionLocal
@@ -41,7 +40,7 @@ def _sse_wrapper(event_gen, convo_id):
             elif event["type"] == "meta":
                 sources = event.get("sources", [])
             elif event["type"] == "done":
-                continue  # skip generator's done, we yield our own below
+                continue
             yield f"data: {json.dumps(event)}\n\n"
     finally:
         db = SessionLocal()
@@ -122,40 +121,18 @@ async def chat_endpoint(request: dict, db: Session = Depends(get_db)):
 
     try:
         if func_name == "show_process":
-            service_name = args.get("service_name", "")
-            answer, ui_cmd, process_data = handle_process(db, service_name)
-            ai_msg = Message(convo_id=convo_id, role="ai", content=answer, sources="[]")
-            db.add(ai_msg)
-            db.commit()
-            return {
-                "status": "success", "answer": answer, "process_data": process_data,
-                "ui_command": ui_cmd, "map_data": [], "docs_info": [], "sources": [],
-                "convo_id": convo_id,
-            }
-
+            stream = handle_process_stream(db, args.get("service_name", ""), user_query)
         elif func_name == "show_map":
-            keyword = args.get("keyword", "")
-            answer, ui_cmd, map_data = handle_map(db, keyword)
-            ai_msg = Message(convo_id=convo_id, role="ai", content=answer, sources="[]")
-            db.add(ai_msg)
-            db.commit()
-            return {
-                "status": "success", "answer": answer, "process_data": None,
-                "ui_command": ui_cmd, "map_data": map_data, "docs_info": [], "sources": [],
-                "convo_id": convo_id,
-            }
-
+            stream = handle_map_stream(db, args.get("keyword", ""), user_query)
         elif func_name == "search_policy":
-            return StreamingResponse(
-                _sse_wrapper(handle_rag_stream(user_query), convo_id),
-                media_type="text/event-stream",
-            )
-
+            stream = handle_rag_stream(user_query)
         else:
-            return StreamingResponse(
-                _sse_wrapper(handle_chat_stream(user_query), convo_id),
-                media_type="text/event-stream",
-            )
+            stream = handle_chat_stream(user_query)
+
+        return StreamingResponse(
+            _sse_wrapper(stream, convo_id),
+            media_type="text/event-stream",
+        )
 
     except Exception as e:
         db.rollback()

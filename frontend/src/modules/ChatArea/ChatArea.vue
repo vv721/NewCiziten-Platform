@@ -30,24 +30,12 @@ const handleSend = async (text) => {
 
   try {
     await sendToAIStream(text, activeConvoId.value, userState.userInfo.id, {
-      onJSON: (res) => {
-        aiMsg.content = res.answer
-        aiMsg.sources = res.sources || []
-        if (res.ui_command) {
-          let data = res.map_data
-          if (res.ui_command === 'SHOW_TRACE') data = res.docs_info
-          else if (res.ui_command === 'SHOW_PROCESS') data = res.process_data
-          uiState.dispatchCommand(res.ui_command, data)
-        }
-        if (!activeConvoId.value && res.convo_id) {
-          activeConvoId.value = res.convo_id
-          refreshConvoList(userState.userInfo.id)
-        }
-      },
       onMeta: (event) => {
         if (event.ui_command) {
           let data
           if (event.ui_command === 'SHOW_TRACE') data = event.docs_info
+          else if (event.ui_command === 'SHOW_PROCESS') data = event.process_data
+          else if (event.ui_command === 'SHOW_MAP') data = event.map_data
           uiState.dispatchCommand(event.ui_command, data)
         }
         aiMsg.sources = event.sources || []

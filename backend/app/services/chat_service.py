@@ -2,38 +2,81 @@ import json
 from sqlalchemy.orm import Session
 from sqlalchemy import or_
 
-from app.core.prompts import RAG_PROMPT
+from app.core.prompts import RAG_PROMPT, PROCESS_GUIDE_PROMPT, MAP_GUIDE_PROMPT
 from app.core.vector_engine import engine
 from app.core.llm_client import llm
 from models import ServiceGuide, Resource
 
 
-def handle_process(db: Session, service_name: str):
-    guide = db.query(ServiceGuide).filter(ServiceGuide.title == service_name).first()
+def _build_process_text(guide) -> str:
+    """将 ServiceGuide 序列化为 LLM 可读的结构化文本。"""
+    conditions = json.loads(guide.conditions) if guide.conditions else []
+    materials = json.loads(guide.materials) if guide.materials else []
+    steps = json.loads(guide.flow_steps) if guide.flow_steps else []
 
-    if not guide:
-        return (
-            f'抱歉,在我的资源库中暂时没有找到与"{service_name}"相关的办事指南。',
-            'SHOW_PROCESS',
-            None,
-        )
+    lines = [f"事项名称：{guide.title}"]
+    if guide.dept_name:
+        lines.append(f"受理部门：{guide.dept_name}")
+    if conditions:
+        lines.append(f"申请条件：{'；'.join(conditions)}")
+    if steps:
+        step_texts = [f"第{s['step']}步「{s['name']}」{s['desc']}" for s in steps]
+        lines.append("办理流程：" + " → ".join(step_texts))
+    if materials:
+        mat_texts = [f"{m['name']}（{m.get('type', '')}，{m.get('paper_count', '')}）" for m in materials]
+        lines.append("所需材料：" + "；".join(mat_texts))
+    if guide.address:
+        addr_line = f"办理地址：{guide.address}"
+        if guide.office_time:
+            addr_line += f"（办公时间：{guide.office_time}）"
+        lines.append(addr_line)
+    if guide.phone:
+        lines.append(f"咨询电话：{guide.phone}")
 
-    process_data = {
+    return '\n'.join(lines)
+
+
+def _build_process_data(guide) -> dict:
+    """从 ServiceGuide 构建前端所需的 process_data 字典。"""
+    return {
         'title': guide.title,
         'dept': guide.dept_name,
-        'conditions': json.loads(guide.conditions),
-        'materials': json.loads(guide.materials),
-        'steps': json.loads(guide.flow_steps),
+        'conditions': json.loads(guide.conditions) if guide.conditions else [],
+        'materials': json.loads(guide.materials) if guide.materials else [],
+        'steps': json.loads(guide.flow_steps) if guide.flow_steps else [],
         'address': guide.address,
         'latlng': guide.latlng,
         'office_time': guide.office_time,
         'phone': guide.phone,
     }
-    answer = f'没问题,我已为您调取了【{guide.title}】的办事指南,您可以参考右侧的办理流程和材料清单。'
-    return answer, 'SHOW_PROCESS', process_data
 
 
-def handle_map(db: Session, keyword: str):
+# ── stream generators (unified interface) ──
+
+def handle_process_stream(db: Session, service_name: str, user_query: str):
+    guide = db.query(ServiceGuide).filter(ServiceGuide.title == service_name).first()
+
+    if not guide:
+        def generate():
+            yield {'type': 'meta', 'ui_command': 'SHOW_PROCESS', 'process_data': None}
+            yield {'type': 'token', 'content': f'抱歉，在我的资源库中暂时没有找到与"{service_name}"相关的办事指南。'}
+            yield {'type': 'done'}
+        return generate()
+
+    process_data = _build_process_data(guide)
+    process_text = _build_process_text(guide)
+    prompt = PROCESS_GUIDE_PROMPT.format(process_data=process_text, user_query=user_query)
+
+    def generate():
+        yield {'type': 'meta', 'ui_command': 'SHOW_PROCESS', 'process_data': process_data}
+        for token in llm.ask_stream(prompt):
+            yield {'type': 'token', 'content': token}
+        yield {'type': 'done'}
+
+    return generate()
+
+
+def handle_map_stream(db: Session, keyword: str, user_query: str):
     query = db.query(Resource)
 
     if keyword and keyword.upper() != 'NONE':
@@ -48,11 +91,11 @@ def handle_map(db: Session, keyword: str):
     resources = query.limit(5).all()
 
     if not resources:
-        return (
-            f'抱歉,在我的资源库中暂时没有找到与"{keyword}"相关的已认证服务点。',
-            'DEFAULT',
-            [],
-        )
+        def generate():
+            yield {'type': 'meta', 'ui_command': 'SHOW_MAP', 'map_data': []}
+            yield {'type': 'token', 'content': f'抱歉，在我的资源库中暂时没有找到与"{keyword}"相关的已认证服务点。'}
+            yield {'type': 'done'}
+        return generate()
 
     map_data = [
         {
@@ -63,41 +106,19 @@ def handle_map(db: Session, keyword: str):
         }
         for r in resources
     ]
-    return '已为您在右侧地图标注了相关的公共服务网点。', 'SHOW_MAP', map_data
 
+    map_lines = [f"{m['name']}（{m['address']}）" + (f" 电话：{m['phone']}" if m.get('phone') else "") for m in map_data]
+    map_text = '\n'.join(map_lines)
 
-def handle_rag(user_query: str):
-    context_docs = engine.search_knowledge(user_query, top_k=5)
+    prompt = MAP_GUIDE_PROMPT.format(map_data=map_text, user_query=user_query)
 
-    docs_info = []
-    context_chunks = []
-    source_set = set()
+    def generate():
+        yield {'type': 'meta', 'ui_command': 'SHOW_MAP', 'map_data': map_data}
+        for token in llm.ask_stream(prompt):
+            yield {'type': 'token', 'content': token}
+        yield {'type': 'done'}
 
-    for doc in context_docs:
-        content = doc['content']
-        source_name = doc['metadata'].get('source', '未知文件')
-        page_num = doc['metadata'].get('page', 0) + 1
-
-        docs_info.append(
-            {'content': content, 'source': source_name, 'page': page_num}
-        )
-        context_chunks.append(content)
-        source_set.add(source_name)
-
-    context_text = '\n'.join(context_chunks)
-    sources = list(source_set)
-
-    rag_prompt = RAG_PROMPT.format(
-        context_text=context_text, user_query=user_query
-    )
-    answer = llm.ask(rag_prompt)
-
-    ui_cmd = 'SHOW_TRACE' if docs_info else 'DEFAULT'
-    return answer, ui_cmd, docs_info, sources
-
-
-def handle_chat(user_query: str):
-    return llm.ask(user_query)
+    return generate()
 
 
 def handle_rag_stream(user_query: str):

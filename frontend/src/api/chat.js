@@ -1,13 +1,34 @@
 import request from "./request"
 import { uiState } from '@/store/uiState'
 
+function getUserPosition() {
+  return new Promise((resolve) => {
+    if (!navigator.geolocation) {
+      resolve({ lat: null, lng: null })
+      return
+    }
+    navigator.geolocation.getCurrentPosition(
+      (pos) => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+      () => resolve({ lat: null, lng: null }),
+      { timeout: 5000 },
+    )
+  })
+}
+
 export const sendToAI = (msg, convoId, userId) => request.post('/api/chat', { message: msg, convo_id: convoId, user_id: userId, active_mode: uiState.activeMode })
 
 export async function sendToAIStream(msg, convoId, userId, callbacks) {
+  const pos = await getUserPosition()
+  const body = { message: msg, convo_id: convoId, user_id: userId, active_mode: uiState.activeMode }
+  if (pos.lat != null) {
+    body.lat = pos.lat
+    body.lng = pos.lng
+  }
+
   const response = await fetch('http://127.0.0.1:8000/api/chat', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ message: msg, convo_id: convoId, user_id: userId, active_mode: uiState.activeMode }),
+    body: JSON.stringify(body),
   })
 
   const reader = response.body.getReader()

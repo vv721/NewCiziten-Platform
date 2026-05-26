@@ -66,6 +66,8 @@ async def chat_endpoint(request: dict, db: Session = Depends(get_db)):
     user_id = request.get("user_id")
     convo_id = request.get("convo_id")
     active_mode = request.get("active_mode", "auto")
+    user_lat = request.get("lat")
+    user_lng = request.get("lng")
 
     if not convo_id:
         new_convo = Conversation(user_id=user_id, title="")
@@ -124,7 +126,7 @@ async def chat_endpoint(request: dict, db: Session = Depends(get_db)):
         if func_name == "show_process":
             stream = handle_process_stream(db, args.get("service_name", ""), user_query, active_mode)
         elif func_name == "show_map":
-            stream = handle_map_stream(db, args.get("keyword", ""), user_query, active_mode)
+            stream = handle_map_stream(db, args.get("keyword", ""), user_query, active_mode, user_lat, user_lng)
         elif func_name == "search_policy":
             stream = handle_rag_stream(user_query, active_mode)
         else:

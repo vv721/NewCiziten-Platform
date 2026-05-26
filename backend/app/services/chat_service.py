@@ -1,4 +1,6 @@
 import json
+from math import radians, sin, cos, sqrt, asin
+
 from sqlalchemy.orm import Session
 from sqlalchemy import or_
 
@@ -6,6 +8,15 @@ from app.core.prompts import RAG_PROMPT, PROCESS_GUIDE_PROMPT, MAP_GUIDE_PROMPT
 from app.core.vector_engine import engine
 from app.core.llm_client import llm
 from models import ServiceGuide, Resource
+
+
+def _haversine(lat1: float, lng1: float, lat2: float, lng2: float) -> float:
+    """返回两点间的球面距离（公里）。"""
+    r = 6371.0
+    dlat = radians(lat2 - lat1)
+    dlng = radians(lng2 - lng1)
+    a = sin(dlat / 2) ** 2 + cos(radians(lat1)) * cos(radians(lat2)) * sin(dlng / 2) ** 2
+    return r * (2 * asin(sqrt(a)))
 
 
 def _build_process_text(guide) -> str:
@@ -76,7 +87,7 @@ def handle_process_stream(db: Session, service_name: str, user_query: str, activ
     return generate()
 
 
-def handle_map_stream(db: Session, keyword: str, user_query: str, active_mode: str):
+def handle_map_stream(db: Session, keyword: str, user_query: str, active_mode: str, user_lat: float = None, user_lng: float = None):
     query = db.query(Resource)
 
     if keyword and keyword.upper() != 'NONE':
@@ -97,17 +108,38 @@ def handle_map_stream(db: Session, keyword: str, user_query: str, active_mode: s
             yield {'type': 'done'}
         return generate()
 
-    map_data = [
-        {
+    has_user_pos = user_lat is not None and user_lng is not None
+
+    map_data = []
+    for r in resources:
+        entry = {
             'name': r.name,
             'latlng': r.latlng,
             'address': r.address,
             'phone': r.phone,
         }
-        for r in resources
-    ]
+        if has_user_pos and r.latlng:
+            try:
+                lng, lat = map(float, r.latlng.split(','))
+                entry['distance'] = round(_haversine(user_lat, user_lng, lat, lng), 1)
+            except (ValueError, TypeError):
+                entry['distance'] = None
+        else:
+            entry['distance'] = None
+        map_data.append(entry)
 
-    map_lines = [f"{m['name']}（{m['address']}）" + (f" 电话：{m['phone']}" if m.get('phone') else "") for m in map_data]
+    # 按距离排序（有位置时近的在前）
+    if has_user_pos:
+        map_data.sort(key=lambda m: m.get('distance') if m.get('distance') is not None else float('inf'))
+
+    map_lines = []
+    for m in map_data:
+        line = f"{m['name']}（{m['address']}）"
+        if m.get('distance') is not None:
+            line = f"{m['name']}（{m['address']}，距您约{m['distance']}公里）"
+        if m.get('phone'):
+            line += f" 电话：{m['phone']}"
+        map_lines.append(line)
     map_text = '\n'.join(map_lines)
 
     prompt = MAP_GUIDE_PROMPT.format(map_data=map_text, user_query=user_query, active_mode=active_mode)

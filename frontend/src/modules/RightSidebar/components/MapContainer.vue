@@ -26,6 +26,7 @@ const updateMarkers = (points) => {
       const infoWindow = new window.AMap.InfoWindow({
         content: `<div style="padding:10px;font-size:12px;">
                     <b style="font-size:14px;color:#409EFF;">${item.name}</b><br/>
+                    ${item.distance != null ? `距您约: ${item.distance} 公里<br/>` : ''}
                     地址: ${item.address}<br/>
                     电话: ${item.phone}
                   </div>`,

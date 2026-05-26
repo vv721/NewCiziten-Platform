@@ -53,7 +53,7 @@ def _build_process_data(guide) -> dict:
 
 # ── stream generators (unified interface) ──
 
-def handle_process_stream(db: Session, service_name: str, user_query: str):
+def handle_process_stream(db: Session, service_name: str, user_query: str, active_mode: str):
     guide = db.query(ServiceGuide).filter(ServiceGuide.title == service_name).first()
 
     if not guide:
@@ -65,7 +65,7 @@ def handle_process_stream(db: Session, service_name: str, user_query: str):
 
     process_data = _build_process_data(guide)
     process_text = _build_process_text(guide)
-    prompt = PROCESS_GUIDE_PROMPT.format(process_data=process_text, user_query=user_query)
+    prompt = PROCESS_GUIDE_PROMPT.format(process_data=process_text, user_query=user_query, active_mode=active_mode)
 
     def generate():
         yield {'type': 'meta', 'ui_command': 'SHOW_PROCESS', 'process_data': process_data}
@@ -76,7 +76,7 @@ def handle_process_stream(db: Session, service_name: str, user_query: str):
     return generate()
 
 
-def handle_map_stream(db: Session, keyword: str, user_query: str):
+def handle_map_stream(db: Session, keyword: str, user_query: str, active_mode: str):
     query = db.query(Resource)
 
     if keyword and keyword.upper() != 'NONE':
@@ -110,7 +110,7 @@ def handle_map_stream(db: Session, keyword: str, user_query: str):
     map_lines = [f"{m['name']}（{m['address']}）" + (f" 电话：{m['phone']}" if m.get('phone') else "") for m in map_data]
     map_text = '\n'.join(map_lines)
 
-    prompt = MAP_GUIDE_PROMPT.format(map_data=map_text, user_query=user_query)
+    prompt = MAP_GUIDE_PROMPT.format(map_data=map_text, user_query=user_query, active_mode=active_mode)
 
     def generate():
         yield {'type': 'meta', 'ui_command': 'SHOW_MAP', 'map_data': map_data}
@@ -121,7 +121,7 @@ def handle_map_stream(db: Session, keyword: str, user_query: str):
     return generate()
 
 
-def handle_rag_stream(user_query: str):
+def handle_rag_stream(user_query: str, active_mode: str):
     context_docs = engine.search_knowledge(user_query, top_k=5)
 
     docs_info = []
@@ -144,7 +144,7 @@ def handle_rag_stream(user_query: str):
     ui_cmd = 'SHOW_TRACE' if docs_info else 'DEFAULT'
 
     rag_prompt = RAG_PROMPT.format(
-        context_text=context_text, user_query=user_query
+        context_text=context_text, user_query=user_query, active_mode=active_mode
     )
 
     def generate():
@@ -156,7 +156,7 @@ def handle_rag_stream(user_query: str):
     return generate()
 
 
-def handle_chat_stream(user_query: str):
+def handle_chat_stream(user_query: str, active_mode: str):
     def generate():
         yield {'type': 'meta', 'ui_command': 'DEFAULT'}
         for token in llm.ask_stream(user_query):

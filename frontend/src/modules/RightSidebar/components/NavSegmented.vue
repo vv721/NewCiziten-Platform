@@ -20,6 +20,10 @@ const activeStyle = computed(() => {
 
 const handleTabClick = (index) => {
   uiState.currentCarouselIndex = index
+  const indexToMode = { 0: 'policy', 1: 'map', 2: 'service' }
+  if (indexToMode[index]) {
+    uiState.activeMode = indexToMode[index]
+  }
 }
 </script>
 

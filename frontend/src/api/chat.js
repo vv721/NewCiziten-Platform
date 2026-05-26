@@ -1,12 +1,13 @@
 import request from "./request"
+import { uiState } from '@/store/uiState'
 
-export const sendToAI = (msg, convoId, userId) => request.post('/api/chat', { message: msg, convo_id: convoId, user_id: userId })
+export const sendToAI = (msg, convoId, userId) => request.post('/api/chat', { message: msg, convo_id: convoId, user_id: userId, active_mode: uiState.activeMode })
 
 export async function sendToAIStream(msg, convoId, userId, callbacks) {
   const response = await fetch('http://127.0.0.1:8000/api/chat', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ message: msg, convo_id: convoId, user_id: userId }),
+    body: JSON.stringify({ message: msg, convo_id: convoId, user_id: userId, active_mode: uiState.activeMode }),
   })
 
   const reader = response.body.getReader()

@@ -21,8 +21,9 @@ export const uiState = reactive({
   // 3. 动作：手动切换模式（用户点击胶囊触发）
   setMode(mode) {
     this.activeMode = mode;
-    // 如果不是自动模式，立即切页
-    if (mode !== 'auto') {
+    if (mode === 'auto') {
+      this.currentCarouselIndex = 0;
+    } else {
       this.currentCarouselIndex = this.modeToIndex[mode];
     }
     console.log(`[UI切换] 当前模式: ${mode}`);

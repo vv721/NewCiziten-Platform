@@ -65,6 +65,7 @@ async def chat_endpoint(request: dict, db: Session = Depends(get_db)):
     user_query = request.get("message")
     user_id = request.get("user_id")
     convo_id = request.get("convo_id")
+    active_mode = request.get("active_mode", "auto")
 
     if not convo_id:
         new_convo = Conversation(user_id=user_id, title="")
@@ -113,7 +114,7 @@ async def chat_endpoint(request: dict, db: Session = Depends(get_db)):
     intent_result = llm.classify_intent(
         user_query,
         tools=INTENT_TOOLS,
-        system_message=INTENT_SYSTEM_PROMPT.format(service_list=service_list_str),
+        system_message=INTENT_SYSTEM_PROMPT.format(service_list=service_list_str, active_mode=active_mode),
     )
     func_name = intent_result["name"]
     args = intent_result["arguments"]
@@ -121,13 +122,13 @@ async def chat_endpoint(request: dict, db: Session = Depends(get_db)):
 
     try:
         if func_name == "show_process":
-            stream = handle_process_stream(db, args.get("service_name", ""), user_query)
+            stream = handle_process_stream(db, args.get("service_name", ""), user_query, active_mode)
         elif func_name == "show_map":
-            stream = handle_map_stream(db, args.get("keyword", ""), user_query)
+            stream = handle_map_stream(db, args.get("keyword", ""), user_query, active_mode)
         elif func_name == "search_policy":
-            stream = handle_rag_stream(user_query)
+            stream = handle_rag_stream(user_query, active_mode)
         else:
-            stream = handle_chat_stream(user_query)
+            stream = handle_chat_stream(user_query, active_mode)
 
         return StreamingResponse(
             _sse_wrapper(stream, convo_id),

@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 from passlib.context import CryptContext
 import json
 
-from app.core.prompts import INTENT_TOOLS, INTENT_SYSTEM_PROMPT, QUERY_REWRITE_TEMPLATE, TITLE_GEN_PROMPT
+from app.core.prompts import INTENT_TOOL_DEFINITIONS, INTENT_ROUTING_PROMPT, QUERY_REWRITE_PROMPT, TITLE_GEN_PROMPT
 from app.services.chat_service import (
     handle_process_stream, handle_map_stream, handle_rag_stream, handle_chat_stream,
 )
@@ -102,7 +102,7 @@ async def chat_endpoint(request: dict, db: Session = Depends(get_db)):
                 role_label = "User" if msg.role == "user" else "Assistant"
                 chat_history_text += f"{role_label}: {msg.content}\n"
 
-            rewrite_prompt = QUERY_REWRITE_TEMPLATE.format(
+            rewrite_prompt = QUERY_REWRITE_PROMPT.format(
                 chat_history=chat_history_text, user_query=user_query
             )
             rewritten = llm.ask(rewrite_prompt, system_message="你只负责重写搜索语句。")
@@ -115,8 +115,8 @@ async def chat_endpoint(request: dict, db: Session = Depends(get_db)):
     service_list_str = ", ".join([g.title for g in all_guides])
     intent_result = llm.classify_intent(
         user_query,
-        tools=INTENT_TOOLS,
-        system_message=INTENT_SYSTEM_PROMPT.format(service_list=service_list_str, active_mode=active_mode),
+        tools=INTENT_TOOL_DEFINITIONS,
+        system_message=INTENT_ROUTING_PROMPT.format(service_list=service_list_str, active_mode=active_mode),
     )
     func_name = intent_result["name"]
     args = intent_result["arguments"]

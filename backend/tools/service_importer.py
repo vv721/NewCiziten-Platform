@@ -15,7 +15,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from database import SessionLocal
 import models
 # [解耦点]：导入提示词模板
-from app.core.prompts import SERVICE_TEXT_EXTRACT_PROMPT, SERVICE_VISION_STEP_PROMPT
+from app.core.prompts import TEXT_EXTRACT_PROMPT, VISION_STEP_PROMPT
 
 load_dotenv()
 
@@ -86,7 +86,7 @@ class ServiceImporter:
 
     def _ai_parse_text(self, text):
         """工具：调用 DeepSeek 结构化文本"""
-        prompt = SERVICE_TEXT_EXTRACT_PROMPT.format(raw_text=text)
+        prompt = TEXT_EXTRACT_PROMPT.format(raw_text=text)
         res = self.ds_client.chat.completions.create(
             model="deepseek-chat",
             messages=[{"role": "user", "content": prompt}]
@@ -99,7 +99,7 @@ class ServiceImporter:
         res = self.qwen_client.chat.completions.create(
             model="qwen3-vl-flash",
             messages=[{"role": "user", "content": [
-                {"type": "text", "text": SERVICE_VISION_STEP_PROMPT},
+                {"type": "text", "text": VISION_STEP_PROMPT},
                 {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{img_b64}"}}
             ]}]
         ).choices[0].message.content

@@ -13,24 +13,26 @@ class LLMClient:
             base_url=os.getenv("DeepSeek_Base_URL")
         )
 
-    def ask(self, prompt: str, system_message: str = "你是一个市民智慧服务助手"):
+    def _build_messages(self, prompt: str, system_message: str, history: list[dict] = None) -> list[dict]:
+        """构建标准多轮对话 messages 列表。"""
+        messages = [{"role": "system", "content": system_message}]
+        if history:
+            messages.extend(history)
+        messages.append({"role": "user", "content": prompt})
+        return messages
+
+    def ask(self, prompt: str, system_message: str = "你是一个市民智慧服务助手", history: list[dict] = None):
         response = self.client.chat.completions.create(
             model = "deepseek-chat",
-            messages = [
-                {"role": "system", "content": system_message},
-                {"role": "user", "content": prompt},
-            ],
+            messages = self._build_messages(prompt, system_message, history),
             temperature=0.2,
         )
         return response.choices[0].message.content
 
-    def ask_stream(self, prompt: str, system_message: str = "你是一个市民智慧服务助手"):
+    def ask_stream(self, prompt: str, system_message: str = "你是一个市民智慧服务助手", history: list[dict] = None):
         response = self.client.chat.completions.create(
             model="deepseek-chat",
-            messages=[
-                {"role": "system", "content": system_message},
-                {"role": "user", "content": prompt},
-            ],
+            messages=self._build_messages(prompt, system_message, history),
             temperature=0.2,
             stream=True,
         )
@@ -38,13 +40,10 @@ class LLMClient:
             if chunk.choices[0].delta.content:
                 yield chunk.choices[0].delta.content
 
-    def classify_intent(self, user_query: str, tools: list, system_message: str = "你是一个政务服务调度专家"):
+    def classify_intent(self, user_query: str, tools: list, system_message: str = "你是一个政务服务调度专家", history: list[dict] = None):
         response = self.client.chat.completions.create(
             model="deepseek-chat",
-            messages=[
-                {"role": "system", "content": system_message},
-                {"role": "user", "content": user_query},
-            ],
+            messages=self._build_messages(user_query, system_message, history),
             tools=tools,
             tool_choice="required",
             temperature=0,

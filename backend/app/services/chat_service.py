@@ -64,7 +64,7 @@ def _build_process_data(guide) -> dict:
 
 # ── stream generators (unified interface) ──
 
-def handle_process_stream(db: Session, service_name: str, user_query: str, active_mode: str):
+def handle_process_stream(db: Session, service_name: str, user_query: str, active_mode: str, history: list[dict] = None):
     guide = db.query(ServiceGuide).filter(ServiceGuide.title == service_name).first()
 
     if not guide:
@@ -80,14 +80,14 @@ def handle_process_stream(db: Session, service_name: str, user_query: str, activ
 
     def generate():
         yield {'type': 'meta', 'ui_command': 'SHOW_PROCESS', 'process_data': process_data}
-        for token in llm.ask_stream(prompt):
+        for token in llm.ask_stream(prompt, history=history):
             yield {'type': 'token', 'content': token}
         yield {'type': 'done'}
 
     return generate()
 
 
-def handle_map_stream(db: Session, keyword: str, user_query: str, active_mode: str, user_lat: float = None, user_lng: float = None):
+def handle_map_stream(db: Session, keyword: str, user_query: str, active_mode: str, user_lat: float = None, user_lng: float = None, history: list[dict] = None):
     query = db.query(Resource)
 
     if keyword and keyword.upper() != 'NONE':
@@ -146,14 +146,14 @@ def handle_map_stream(db: Session, keyword: str, user_query: str, active_mode: s
 
     def generate():
         yield {'type': 'meta', 'ui_command': 'SHOW_MAP', 'map_data': map_data}
-        for token in llm.ask_stream(prompt):
+        for token in llm.ask_stream(prompt, history=history):
             yield {'type': 'token', 'content': token}
         yield {'type': 'done'}
 
     return generate()
 
 
-def handle_rag_stream(user_query: str, active_mode: str):
+def handle_rag_stream(user_query: str, active_mode: str, history: list[dict] = None):
     context_docs = engine.search_knowledge(user_query, top_k=5)
 
     docs_info = []
@@ -181,17 +181,17 @@ def handle_rag_stream(user_query: str, active_mode: str):
 
     def generate():
         yield {'type': 'meta', 'ui_command': ui_cmd, 'docs_info': docs_info, 'sources': sources}
-        for token in llm.ask_stream(rag_prompt):
+        for token in llm.ask_stream(rag_prompt, history=history):
             yield {'type': 'token', 'content': token}
         yield {'type': 'done'}
 
     return generate()
 
 
-def handle_chat_stream(user_query: str, active_mode: str):
+def handle_chat_stream(user_query: str, active_mode: str, history: list[dict] = None):
     def generate():
         yield {'type': 'meta', 'ui_command': 'DEFAULT'}
-        for token in llm.ask_stream(user_query):
+        for token in llm.ask_stream(user_query, history=history):
             yield {'type': 'token', 'content': token}
         yield {'type': 'done'}
 

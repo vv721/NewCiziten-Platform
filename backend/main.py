@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 from passlib.context import CryptContext
 import json
 
-from app.core.prompts import INTENT_TOOL_DEFINITIONS, INTENT_ROUTING_PROMPT, QUERY_REWRITE_PROMPT, TITLE_GEN_PROMPT
+from app.core.prompts import INTENT_TOOL_DEFINITIONS, INTENT_ROUTING_PROMPT, TITLE_GEN_PROMPT
 from app.services.chat_service import (
     handle_process_stream, handle_map_stream, handle_rag_stream, handle_chat_stream,
 )
@@ -86,8 +86,8 @@ async def chat_endpoint(request: dict, db: Session = Depends(get_db)):
     db.add(user_msg)
     db.commit()
 
-    # 查询重写：用对话历史消解指代，使多轮对话成为可能
-    original_query = user_query
+    # 构建对话历史上下文（标准多轮对话格式）
+    history = []
     if convo_id:
         history_records = (
             db.query(Message)
@@ -96,19 +96,9 @@ async def chat_endpoint(request: dict, db: Session = Depends(get_db)):
             .limit(6)
             .all()
         )
-        if history_records:
-            chat_history_text = ""
-            for msg in reversed(history_records):
-                role_label = "User" if msg.role == "user" else "Assistant"
-                chat_history_text += f"{role_label}: {msg.content}\n"
-
-            rewrite_prompt = QUERY_REWRITE_PROMPT.format(
-                chat_history=chat_history_text, user_query=user_query
-            )
-            rewritten = llm.ask(rewrite_prompt, system_message="你只负责重写搜索语句。")
-            if rewritten and len(rewritten.strip()) > 2:
-                user_query = rewritten.strip()
-                print(f"[Rewrite] {original_query} -> {user_query}")
+        for msg in reversed(history_records):
+            role = "assistant" if msg.role == "ai" else "user"
+            history.append({"role": role, "content": msg.content})
 
     # 意图分析 (Function Calling)
     all_guides = db.query(ServiceGuide.title).all()
@@ -117,6 +107,7 @@ async def chat_endpoint(request: dict, db: Session = Depends(get_db)):
         user_query,
         tools=INTENT_TOOL_DEFINITIONS,
         system_message=INTENT_ROUTING_PROMPT.format(service_list=service_list_str, active_mode=active_mode),
+        history=history,
     )
     func_name = intent_result["name"]
     args = intent_result["arguments"]
@@ -124,13 +115,13 @@ async def chat_endpoint(request: dict, db: Session = Depends(get_db)):
 
     try:
         if func_name == "show_process":
-            stream = handle_process_stream(db, args.get("service_name", ""), user_query, active_mode)
+            stream = handle_process_stream(db, args.get("service_name", ""), user_query, active_mode, history=history)
         elif func_name == "show_map":
-            stream = handle_map_stream(db, args.get("keyword", ""), user_query, active_mode, user_lat, user_lng)
+            stream = handle_map_stream(db, args.get("keyword", ""), user_query, active_mode, user_lat, user_lng, history=history)
         elif func_name == "search_policy":
-            stream = handle_rag_stream(user_query, active_mode)
+            stream = handle_rag_stream(user_query, active_mode, history=history)
         else:
-            stream = handle_chat_stream(user_query, active_mode)
+            stream = handle_chat_stream(user_query, active_mode, history=history)
 
         return StreamingResponse(
             _sse_wrapper(stream, convo_id),

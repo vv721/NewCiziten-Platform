@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Depends, HTTPException
+﻿from fastapi import FastAPI, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from fastapi.middleware.cors import CORSMiddleware
@@ -66,6 +66,8 @@ async def chat_endpoint(request: dict, db: Session = Depends(get_db)):
     user_id = request.get("user_id")
     convo_id = request.get("convo_id")
     active_mode = request.get("active_mode", "auto")
+    if active_mode not in ("auto", "policy", "map", "service"):
+        active_mode = "auto"
     user_lat = request.get("lat")
     user_lng = request.get("lng")
 
@@ -149,7 +151,7 @@ def login(request: LoginRequest, db: Session = Depends(get_db)):
     return {"role": user.role, 
             "name": user.username, 
             "id": user.id,
-            "avatar": "😊", 
+            "avatar": "😉", 
             "token": token}
 
 app.include_router(admin_router)

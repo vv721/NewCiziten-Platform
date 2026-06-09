@@ -11,7 +11,7 @@ from models import ServiceGuide, Resource
 
 
 def _haversine(lat1: float, lng1: float, lat2: float, lng2: float) -> float:
-    """返回两点间的球面距离（公里）。"""
+    """两点间球面距离（公里）"""
     r = 6371.0
     dlat = radians(lat2 - lat1)
     dlng = radians(lng2 - lng1)
@@ -20,7 +20,7 @@ def _haversine(lat1: float, lng1: float, lat2: float, lng2: float) -> float:
 
 
 def _build_process_text(guide) -> str:
-    """将 ServiceGuide 序列化为 LLM 可读的结构化文本。"""
+    """将 ServiceGuide 序列化为 LLM 可读文本"""
     conditions = json.loads(guide.conditions) if guide.conditions else []
     materials = json.loads(guide.materials) if guide.materials else []
     steps = json.loads(guide.flow_steps) if guide.flow_steps else []
@@ -48,7 +48,7 @@ def _build_process_text(guide) -> str:
 
 
 def _build_process_data(guide) -> dict:
-    """从 ServiceGuide 构建前端所需的 process_data 字典。"""
+    """将 ServiceGuide 转为前端渲染字典"""
     return {
         'title': guide.title,
         'dept': guide.dept_name,
@@ -62,11 +62,12 @@ def _build_process_data(guide) -> dict:
     }
 
 
-# ── stream generators (unified interface) ──
-
 def handle_process_stream(db: Session, service_name: str, user_query: str, active_mode: str, history: list[dict] = None):
+    """查 ServiceGuide 匹配办事事项，拼 prompt 后流式解说"""
+    # 数据库精确匹配
     guide = db.query(ServiceGuide).filter(ServiceGuide.title == service_name).first()
 
+    # 无匹配时返回抱歉
     if not guide:
         def generate():
             yield {'type': 'meta', 'ui_command': 'SHOW_PROCESS', 'process_data': None}
@@ -74,6 +75,7 @@ def handle_process_stream(db: Session, service_name: str, user_query: str, activ
             yield {'type': 'done'}
         return generate()
 
+    # 构建前端数据与 LLM prompt
     process_data = _build_process_data(guide)
     process_text = _build_process_text(guide)
     prompt = PROCESS_GUIDE_PROMPT.format(process_data=process_text, user_query=user_query, active_mode=active_mode)
@@ -88,19 +90,18 @@ def handle_process_stream(db: Session, service_name: str, user_query: str, activ
 
 
 def handle_map_stream(db: Session, keyword: str, user_query: str, active_mode: str, user_lat: float = None, user_lng: float = None, history: list[dict] = None):
+    """模糊匹配 Resource 资源点，算距离排序后地图标点"""
+    # 多维模糊匹配
     query = db.query(Resource)
-
     if keyword and keyword.upper() != 'NONE':
-        query = query.filter(
-            or_(
-                Resource.name.contains(keyword),
-                Resource.tags.contains(keyword),
-                Resource.category.contains(keyword),
-            )
-        )
-
+        query = query.filter(or_(
+            Resource.name.contains(keyword),
+            Resource.tags.contains(keyword),
+            Resource.category.contains(keyword),
+        ))
     resources = query.limit(5).all()
 
+    # 无结果时返回抱歉
     if not resources:
         def generate():
             yield {'type': 'meta', 'ui_command': 'SHOW_MAP', 'map_data': []}
@@ -110,6 +111,7 @@ def handle_map_stream(db: Session, keyword: str, user_query: str, active_mode: s
 
     has_user_pos = user_lat is not None and user_lng is not None
 
+    # 组装点位列表，有用户位置时计算距离
     map_data = []
     for r in resources:
         entry = {
@@ -128,10 +130,10 @@ def handle_map_stream(db: Session, keyword: str, user_query: str, active_mode: s
             entry['distance'] = None
         map_data.append(entry)
 
-    # 按距离排序（有位置时近的在前）
     if has_user_pos:
         map_data.sort(key=lambda m: m.get('distance') if m.get('distance') is not None else float('inf'))
 
+    # 组装文本 & prompt
     map_lines = []
     for m in map_data:
         line = f"{m['name']}（{m['address']}）"
@@ -141,7 +143,6 @@ def handle_map_stream(db: Session, keyword: str, user_query: str, active_mode: s
             line += f" 电话：{m['phone']}"
         map_lines.append(line)
     map_text = '\n'.join(map_lines)
-
     prompt = MAP_GUIDE_PROMPT.format(map_data=map_text, user_query=user_query, active_mode=active_mode)
 
     def generate():
@@ -154,8 +155,11 @@ def handle_map_stream(db: Session, keyword: str, user_query: str, active_mode: s
 
 
 def handle_rag_stream(user_query: str, active_mode: str, history: list[dict] = None):
+    """向量检索政策文档，拼接上下文后 RAG 约束生成"""
+    # 向量检索 Top-5
     context_docs = engine.search_knowledge(user_query, top_k=5)
 
+    # 收集文本、元数据与来源
     docs_info = []
     context_chunks = []
     source_set = set()
@@ -165,9 +169,7 @@ def handle_rag_stream(user_query: str, active_mode: str, history: list[dict] = N
         source_name = doc['metadata'].get('source', '未知文件')
         page_num = doc['metadata'].get('page', 0) + 1
 
-        docs_info.append(
-            {'content': content, 'source': source_name, 'page': page_num}
-        )
+        docs_info.append({'content': content, 'source': source_name, 'page': page_num})
         context_chunks.append(content)
         source_set.add(source_name)
 
@@ -189,6 +191,7 @@ def handle_rag_stream(user_query: str, active_mode: str, history: list[dict] = N
 
 
 def handle_chat_stream(user_query: str, active_mode: str, history: list[dict] = None):
+    """不查数据，直接交由 LLM 自由回答"""
     def generate():
         yield {'type': 'meta', 'ui_command': 'DEFAULT'}
         for token in llm.ask_stream(user_query, history=history):

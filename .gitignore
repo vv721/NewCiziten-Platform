@@ -26,8 +26,9 @@ env/
 .venv/
 .newcitenv/
 
-# Paper (private, user-only)
+# Paper & defense materials (private, user-only)
 paper/
+*.pptx
 
 # Accidental root-level installs
 /package.json

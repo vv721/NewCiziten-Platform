@@ -7,7 +7,7 @@ from passlib.context import CryptContext
 import json
 
 from app.core.prompts import INTENT_TOOL_DEFINITIONS, INTENT_ROUTING_PROMPT, TITLE_GEN_PROMPT
-from app.services.chat_service import (
+from app.services.stream_builder import (
     handle_process_stream, handle_map_stream, handle_rag_stream, handle_chat_stream,
 )
 from routers.admin import router as admin_router

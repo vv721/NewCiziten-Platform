@@ -110,7 +110,7 @@ onMounted(async () => {
     map = new AMap.Map("amap-container", {
       viewMode: "3D",           // 开启3D视图，毕设视觉效果更好
       zoom: 11,                 // 初始缩放级别
-      center: [121.5, 38.9],
+      center: [121.528503, 38.973333],  // 大连工业大学
       resizeEnable: true,
     });
     
@@ -145,11 +145,13 @@ const getCurrentPosition = () => {
 
     geolocation.getCurrentPosition((status, result) => {
       if (status === 'complete') {
-        resolve([result.position.lng, result.position.lat]);
+        const pos = [result.position.lng, result.position.lat];
+        console.log('[定位] GPS 成功，起点坐标:', pos);
+        resolve(pos);
       } else {
-        // [论文演示兜底] 如果定位失败（如非HTTPS），返回一个模拟的起始点坐标
-        console.warn("定位受限，使用演示模拟起点");
-        resolve([121.53185438568383,38.97131009007171]); // 示例
+        const fallback = [121.528503, 38.973333];
+        console.warn('[定位] 失败 (' + status + ')，使用兜底坐标:', fallback);
+        resolve(fallback);
       }
     });
   });
@@ -168,6 +170,7 @@ const drawRoute = async (destLatLng) => {
   // 2. 获取起点和终点
   const startPos = await getCurrentPosition();
   const endPos = destLatLng.split(',').map(Number);
+  console.log('[导航] 起点:', startPos, '→ 终点:', endPos);
 
   // 3. 调用步行路径规划插件
   walkRender = new window.AMap.Walking({

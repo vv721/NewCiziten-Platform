@@ -222,7 +222,7 @@ if __name__ == "__main__":
     # 多选主题时传逗号分隔字符串（在页面勾选后从 #UserTopicType 的值获取）
     urls = asyncio.run(importer.collect_urls_from_filter(
         filter_url,
-        user_topic_types="010,020,030,065,075,085",  # 替换为实际勾选的主题 ID 列表 document.querySelector('#UserTopicType').value
+        user_topic_types="010,065,075,085,090",  # 替换为实际勾选的主题 ID 列表 document.querySelector('#UserTopicType').value
     ))
 
     # 过滤已导入的 URL

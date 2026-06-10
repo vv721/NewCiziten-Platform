@@ -1,7 +1,7 @@
 <script setup>
 import FeatureCarousel from './components/FeatureCarousel.vue'
 import NavSegmented from './components/NavSegmented.vue'
-import { Setting, Grid } from '@element-plus/icons-vue'
+
 </script>
 
 <template>
@@ -18,13 +18,7 @@ import { Setting, Grid } from '@element-plus/icons-vue'
             </div>
         </div>
 
-        <!-- 3. 设置/快捷操作区 -->
-        <div class="settingArea">
-            <div class="setting-btn">
-                <el-icon><Setting /></el-icon>
-                <span>面板设置</span>
-            </div>
-        </div>
+        <div class="settingArea"></div>
     </div>
 </template>
 
@@ -68,20 +62,6 @@ import { Setting, Grid } from '@element-plus/icons-vue'
     display: flex;
     align-items: center;
     border-top: 1px solid #f3f4f6;
-}
-
-.setting-btn {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    font-size: 13px;
-    color: #9ca3af;
-    cursor: pointer;
-    transition: color 0.2s;
-}
-
-.setting-btn:hover {
-    color: #409eff;
 }
 
 /* 响应式调整 */

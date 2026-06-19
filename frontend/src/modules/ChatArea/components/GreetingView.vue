@@ -3,7 +3,7 @@ import { messages } from '@/store/convoSwitch'
 const emit = defineEmits(['send'])
 
 const suggestions = [
-  { icon: '📜', text: '在大连怎么申请低保？' },
+  { icon: '📜', text: '梳理一下大连低保相关信息。' },
   { icon: '🆔', text: '我想去办理护照，怎么走流程？' },
   { icon: '🏥', text: '帮我找一下离我最近的医院。' },
   { icon: '🏠', text: '我想了解大连的失业政策。' }

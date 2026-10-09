@@ -1,8 +1,11 @@
 import axios from "axios"
 import { userState } from "@/store/userState"
 
+// 后端地址统一走环境变量，默认本机 8000 端口（见 frontend/.env.example）
+export const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000'
+
 const request = axios.create({
-    baseURL: 'http://127.0.0.1:8000',
+    baseURL: BASE_URL,
     timeout: 300000,
 })
 
@@ -16,7 +19,7 @@ export default request
 
 
 const service = axios.create({
-  baseURL: 'http://127.0.0.1:8000'
+  baseURL: BASE_URL
 })
 
 service.interceptors.request.use(config => {

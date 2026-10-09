@@ -3,7 +3,7 @@ import { userState } from '@/store/userState'
 
 const HomeView = () => import('@/views/HomeView.vue');
 const LoginView = () => import('@/views/LoginView.vue');
-const Dashborad = () => import('@/views/admin/Dashborad.vue');
+const Dashboard = () => import('@/views/admin/Dashboard.vue');
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -20,7 +20,7 @@ const router = createRouter({
   {
     path: '/admin',
     name: 'Admin',
-    component: Dashborad,
+    component: Dashboard,
     children: [
       {
         path: 'users',
@@ -30,7 +30,7 @@ const router = createRouter({
       {
         path: 'knowledge',
         name: 'KnowledgeBase',
-        component: () => import('@/views/admin/KonwledgeBase/KownledgeBase.vue'),
+        component: () => import('@/views/admin/KnowledgeBase/KnowledgeBase.vue'),
       },
       {
         path: 'resources',

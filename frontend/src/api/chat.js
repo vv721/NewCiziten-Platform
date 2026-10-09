@@ -1,4 +1,4 @@
-import request from "./request"
+import request, { BASE_URL } from "./request"
 import { uiState } from '@/store/uiState'
 
 function getUserPosition() {
@@ -25,7 +25,7 @@ export async function sendToAIStream(msg, convoId, userId, callbacks) {
     body.lng = pos.lng
   }
 
-  const response = await fetch('http://127.0.0.1:8000/api/chat', {
+  const response = await fetch(`${BASE_URL}/api/chat`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),

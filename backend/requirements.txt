@@ -1,0 +1,36 @@
+# NewCitizen Platform · 后端依赖
+# 目标位置：backend/requirements.txt
+#
+# 版本取自 2026-10 的可用版本。LangChain 系列各包版本耦合较紧，这里只给下限，
+# 让解析器自行挑一组互相兼容的版本；正式部署前建议在跑通的环境里执行
+# `pip freeze > requirements.txt` 把实际版本固化下来。
+
+# --- Web 框架与数据库 ---
+fastapi==0.143.0
+uvicorn[standard]==0.54.0
+sqlalchemy==2.1.4
+python-dotenv==1.2.4
+
+# --- 鉴权 ---
+python-jose[cryptography]==3.5.0
+passlib==1.7.4
+
+# --- 大模型客户端（DeepSeek 走 OpenAI 兼容协议）---
+openai==3.26.1
+
+# --- 向量库与嵌入 ---
+chromadb==1.5.9
+sentence-transformers==6.1.0
+
+# --- 文档解析与切分（LangChain 生态）---
+langchain-core>=1.0
+langchain-classic>=1.0
+langchain-community>=0.4
+langchain-huggingface>=1.0
+langchain-openai>=1.0
+pypdf==6.19.0
+docx2txt==0.9
+
+# --- 政务数据采集 ---
+playwright==1.63.0
+requests==2.34.2
